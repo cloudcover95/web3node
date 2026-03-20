@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html class="bg-[#050608] text-zinc-300">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Sovereign Mesh | C2</title>
+</head>
+<body class="bg-[#050608] font-mono p-4 overflow-hidden h-screen text-[11px]">
+    <div class="grid grid-cols-4 gap-4 h-full">
+        <div class="col-span-1 border border-zinc-800 bg-black/80 p-4 space-y-6 rounded">
+            <h2 class="text-amber-400 font-bold uppercase border-b border-zinc-900 pb-2">Sandbox C Levers</h2>
+            
+            <div class="space-y-4">
+                <div class="p-2 border border-zinc-900 bg-zinc-900/10 rounded">
+                    <label class="text-zinc-500 uppercase block mb-2">Q-Threshold (<span id="qc-val" class="text-white">0.98</span>)</label>
+                    <input type="range" min="0.5" max="0.99" step="0.01" value="0.98" class="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer" 
+                           oninput="updateLever('C', 'q_threshold', this.value)">
+                </div>
+                <div class="p-2 border border-zinc-900 bg-zinc-900/10 rounded">
+                    <label class="text-zinc-500 uppercase block mb-2">Z-Score Buy (<span id="zb-val" class="text-white">-2.5</span>)</label>
+                    <input type="range" min="-5.0" max="-0.5" step="0.1" value="-2.5" class="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer" 
+                           oninput="updateLever('C', 'z_buy', this.value)">
+                </div>
+                <div class="p-2 border border-zinc-900 bg-zinc-900/10 rounded">
+                    <label class="text-zinc-500 uppercase block mb-2">Z-Score Sell (<span id="zs-val" class="text-white">2.5</span>)</label>
+                    <input type="range" min="0.5" max="5.0" step="0.1" value="2.5" class="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer" 
+                           oninput="updateLever('C', 'z_sell', this.value)">
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-zinc-900">
+                <div class="text-center py-4 bg-blue-900/10 border border-blue-500/20 rounded">
+                    <div class="text-[9px] text-blue-400 uppercase tracking-widest mb-1">A/C Identity Drift</div>
+                    <div id="drift-val" class="text-4xl font-black text-white">0.0000</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-span-3 grid grid-cols-2 gap-4 overflow-auto pr-2" id="reality-grid"></div>
+    </div>
+
+    <script>
+        async function updateLever(branch, lever, val) {
+            // Update UI text immediately
+            if(lever === 'q_threshold') document.getElementById('qc-val').innerText = val;
+            if(lever === 'z_buy') document.getElementById('zb-val').innerText = val;
+            if(lever === 'z_sell') document.getElementById('zs-val').innerText = val;
+
+            // Send to Localhost Node
+            try {
+                await fetch('http://localhost:8080/api/update_sandbox', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ branch: branch, [lever]: parseFloat(val) })
+                });
+            } catch(e) { console.error("Slider Sync Failed", e); }
+        }
+
+        async function sync() {
+            try {
+                const s = await (await fetch('http://localhost:8080/api/state')).json();
+                document.getElementById('drift-val').innerText = (s.drift || 0).toFixed(4);
+                
+                const renderFork = (assets, color) => assets.map(a => `
+                    <div class="p-2 border border-zinc-800 bg-black/60 rounded">
+                        <div class="flex justify-between font-bold">
+                            <span class="text-zinc-100">${a.short_tag}</span>
+                            <span class="text-${color}-400">$${a.spot.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-zinc-500 mt-1">
+                            <span>Q-MARK: <span class="${a.q_mark > 0.8 ? 'text-white font-bold' : ''}">${a.q_mark.toFixed(4)}</span></span>
+                            <span>Z: ${a.robust_z.toFixed(2)}</span>
+                        </div>
+                        <div class="h-1 bg-zinc-900 mt-2 rounded overflow-hidden"><div class="h-full bg-${color}-500" style="width: ${a.q_mark * 100}%"></div></div>
+                    </div>
+                `).join('');
+
+                if(s.forks) {
+                    document.getElementById('reality-grid').innerHTML = `
+                        <div class="space-y-2">
+                            <h3 class="text-blue-500 font-bold border-b border-zinc-800 pb-1 mb-2 uppercase">Reality A (Primary)</h3>
+                            ${renderFork(s.forks.A || [], 'blue')}
+                        </div>
+                        <div class="space-y-2">
+                            <h3 class="text-amber-500 font-bold border-b border-zinc-800 pb-1 mb-2 uppercase">Reality C (Sandbox)</h3>
+                            ${renderFork(s.forks.C || [], 'amber')}
+                        </div>
+                    `;
+                }
+            } catch(e) { console.error("Mesh Sync Error:", e); }
+        }
+        setInterval(sync, 4000); sync();
+    </script>
+</body>
+</html>

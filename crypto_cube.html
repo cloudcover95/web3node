@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html class="bg-black">
+<head>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Sovereign | 3D Kinematics</title>
+</head>
+<body class="m-0 overflow-hidden bg-black">
+    <div id="cube" style="width:100vw; height:100vh;"></div>
+    <script>
+        // V128 Asinh Scaler: Spreads out massive variance evenly across the 3D space
+        const robustScale = (arr) => {
+            const scaled = arr.map(v => Math.asinh(v)); 
+            const m = Math.min(...scaled), x = Math.max(...scaled);
+            return x === m ? scaled.map(() => 0.5) : scaled.map(v => (v - m) / (x - m));
+        };
+        
+        async function sync() {
+            try {
+                const r = await fetch('http://localhost:8080/api/state');
+                const s = await r.json();
+                const a = s.assets || [];
+                if(a.length === 0) return;
+
+                const trace = {
+                    x: robustScale(a.map(i => i.robust_z)),
+                    y: robustScale(a.map(i => i.velocity)),
+                    z: robustScale(a.map(i => i.acceleration)),
+                    // FIXED: Moved text to hover to destroy the Apple Silicon 'a' bug
+                    hovertext: a.map(i => `<b>${i.short_tag}</b><br>Spot: $${i.spot.toFixed(2)}<br>Z: ${i.robust_z.toFixed(2)}`),
+                    hoverinfo: 'text',
+                    mode: 'markers', // Pure spheres
+                    type: 'scatter3d',
+                    marker: { 
+                        size: 14, 
+                        color: a.map(i => i.q_mark), 
+                        colorscale: 'Viridis', 
+                        opacity: 0.9,
+                        symbol: 'circle',
+                        line: {color: '#ffffff', width: 0.5}
+                    }
+                };
+
+                Plotly.react('cube', [trace], {
+                    uirevision: 'true', // View-Lock: Stops camera from resetting on pulse
+                    paper_bgcolor: 'black', margin: {l:0,r:0,b:0,t:0},
+                    scene: { 
+                        xaxis: {gridcolor:'#222', title:'VALUE (Z)'}, 
+                        yaxis: {gridcolor:'#222', title:'MOMENTUM'}, 
+                        zaxis: {gridcolor:'#222', title:'FORCE'} 
+                    }
+                });
+            } catch(e) { console.error("Cube Error:", e); }
+        }
+        setInterval(sync, 5000); sync();
+    </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html class="bg-[#050608] text-zinc-300">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <title>JC SDK | V128 Quad Command</title>
+</head>
+<body class="bg-[#050608] font-mono overflow-hidden">
+    <div class="grid grid-cols-2 grid-rows-2 h-screen p-1 gap-1">
+        <div class="border border-zinc-800 bg-black rounded relative" id="q1">
+            <div class="absolute top-0 left-0 bg-zinc-800 text-blue-300 px-3 py-1 text-[10px] font-bold z-10">Q1: RELATIVE MATRIX</div>
+            <div id="q1-plot" class="w-full h-full pt-6"></div>
+        </div>
+        
+        <div class="border border-zinc-800 p-4 pt-10 relative bg-black rounded overflow-auto" id="q2">
+            <div class="absolute top-0 left-0 bg-zinc-800 text-blue-300 px-3 py-1 text-[10px] font-bold">Q2: ASSET DISCOVERY</div>
+            <div id="q2-list" class="grid grid-cols-2 gap-2"></div>
+        </div>
+        
+        <div class="border border-zinc-800 p-4 flex flex-col bg-black rounded">
+             <div class="flex justify-between text-[10px] mb-2 text-amber-500 border-b border-zinc-800 pb-2 uppercase tracking-widest">
+                <span>A/C Identity Drift</span>
+                <span id="node-status">BOOTING</span>
+             </div>
+             <div class="flex-1 flex flex-col items-center justify-center">
+                <div id="drift-val" class="text-6xl font-black text-white">0.0000</div>
+             </div>
+        </div>
+        
+        <div class="border border-zinc-800 p-4 bg-black rounded flex flex-col">
+             <div class="flex justify-between text-[10px] mb-2 text-emerald-500 border-b border-zinc-800 pb-2">
+                <span>DAILY MINTS: <span id="m-val" class="font-bold text-white">0</span></span>
+             </div>
+             <div id="q4-tiles" class="flex-1 overflow-auto text-[10px] space-y-2 flex items-center justify-center text-zinc-600">
+                 Awaiting Artifact Generation...
+             </div>
+        </div>
+    </div>
+    
+    <script>
+        async function sync() {
+            try {
+                // Hard-bound absolute URL to bypass local file restrictions
+                const s = await (await fetch('http://localhost:8080/api/state')).json();
+                const a = s.assets || [];
+                
+                if(a.length > 0) {
+                    // Safe UI Updates
+                    document.getElementById('node-status').innerText = s.status || "LIVE";
+                    document.getElementById('drift-val').innerText = (s.drift || 0).toFixed(4);
+                    document.getElementById('m-val').innerText = s.daily_mints || 0;
+
+                    // Q1: 2D Plot (No Text, Pure Spheres)
+                    Plotly.react('q1-plot', [{
+                        x: a.map(i => i.robust_z),
+                        y: a.map(i => i.velocity),
+                        hovertext: a.map(i => `${i.short_tag} | Q-Mark: ${i.q_mark.toFixed(3)}`),
+                        hoverinfo: 'text',
+                        mode: 'markers',
+                        type: 'scatter',
+                        marker: { size: 16, color: a.map(i => i.q_mark), colorscale: 'Viridis', opacity: 0.8, line: {width: 1, color: '#000'} }
+                    }], {
+                        paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', margin: {l:20,r:20,b:20,t:10},
+                        xaxis: {gridcolor: '#1e293b', zerolinecolor: '#334155'},
+                        yaxis: {gridcolor: '#1e293b', zerolinecolor: '#334155'}
+                    });
+
+                    // Q2: List
+                    document.getElementById('q2-list').innerHTML = a.map(i => `
+                        <div class="p-2 border border-zinc-800 bg-zinc-900/20 rounded hover:bg-zinc-800 transition">
+                            <div class="flex justify-between font-bold text-blue-400"><span>${i.short_tag}</span><span class="text-zinc-300">$${i.spot}</span></div>
+                            <div class="flex justify-between text-[9px] text-zinc-500 mt-1 uppercase">
+                                <span>${i.tax_call}</span>
+                                <span>Q: ${i.q_mark.toFixed(2)}</span>
+                            </div>
+                        </div>`).join('');
+
+                    // Q4: Latest Mint (With safe navigation)
+                    if(s.last_artifact) {
+                        const art = s.last_artifact;
+                        document.getElementById('q4-tiles').innerHTML = `
+                            <div class="w-full p-3 border border-blue-500/30 bg-blue-500/10 rounded">
+                                <div class="text-blue-400 font-bold mb-2 underline text-[11px] uppercase">LATEST LEDGER ENTRY</div>
+                                <div class="text-zinc-300">ASSET: <span class="text-white font-bold">${art.asset || 'N/A'}</span></div>
+                                <div class="text-zinc-300">ACTION: ${art.burn_data?.reason || 'Standard Mint'}</div>
+                                <div class="text-emerald-400 mt-2 text-[9px]">${art.timestamp}</div>
+                            </div>`;
+                    }
+                }
+            } catch(e) { console.error("Quad Error:", e); }
+        }
+        setInterval(sync, 4000); sync();
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+JuniorCloud_Omni/venv/
+venv/
+.venv/
+__pycache__/
+*.so
+*.pyc

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html class="bg-[#0b0c10] text-zinc-300">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>JC-SDK | V147 Command Quad</title>
+</head>
+<body class="bg-[#0b0c10] font-mono overflow-hidden h-screen p-2 text-sm">
+    <div class="grid grid-cols-2 grid-rows-2 h-full gap-2">
+        
+        <div class="border border-zinc-800 bg-black/60 rounded relative overflow-hidden flex flex-col">
+            <div class="bg-zinc-900 text-[#00ff88] px-3 py-1 text-[10px] font-bold tracking-widest border-b border-zinc-800 uppercase flex justify-between">
+                <span>Q1: Accumulation Queue</span>
+                <span id="q1-count">0</span>
+            </div>
+            <div id="q1-list" class="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                <div class="text-zinc-600 text-xs mt-4">Awaiting Signal...</div>
+            </div>
+        </div>
+        
+        <div class="border border-zinc-800 bg-black/60 rounded relative overflow-hidden flex flex-col">
+            <div class="bg-zinc-900 text-blue-400 px-3 py-1 text-[10px] font-bold tracking-widest border-b border-zinc-800 uppercase flex justify-between">
+                <span>Q2: Active Liquidity Matrix</span>
+                <span id="q2-count">0</span>
+            </div>
+            <div id="q2-list" class="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                <div class="text-zinc-600 text-xs mt-4">Awaiting Signal...</div>
+            </div>
+        </div>
+        
+        <div class="border border-zinc-800 bg-black/60 rounded relative overflow-hidden flex flex-col">
+            <div class="bg-zinc-900 text-red-500 px-3 py-1 text-[10px] font-bold tracking-widest border-b border-zinc-800 uppercase flex justify-between">
+                <span>Q3: Frozen Circuits (Anomalies)</span>
+                <span id="q3-count">0</span>
+            </div>
+            <div id="q3-list" class="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                <div class="text-zinc-600 text-xs mt-4">System nominal.</div>
+            </div>
+        </div>
+        
+        <div class="border border-zinc-800 bg-black/60 rounded relative overflow-hidden flex flex-col">
+            <div class="bg-zinc-900 text-[#ff9900] px-3 py-1 text-[10px] font-bold tracking-widest border-b border-zinc-800 uppercase flex justify-between">
+                <span>Q4: Topological Voids</span>
+                <span id="q4-count">0</span>
+            </div>
+            <div id="q4-list" class="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                <div class="text-zinc-600 text-xs mt-4">Awaiting Signal...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatMoney(n) {
+            if (!n) return "$0.00";
+            if (n >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B";
+            if (n >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M";
+            return "$" + n.toLocaleString();
+        }
+
+        async function pollMatrix() {
+            try {
+                const res = await fetch('http://localhost:8080/api/state');
+                const data = await res.json();
+                const a = data.assets || [];
+
+                // Q1: Accumulate
+                const q1 = a.filter(i => i.stance === 'STRATEGIC_ACCUMULATE');
+                document.getElementById('q1-count').innerText = q1.length;
+                document.getElementById('q1-list').innerHTML = q1.length > 0 ? q1.map(i => `
+                    <div class="p-3 bg-[#00ff88]/10 border border-[#00ff88]/30 rounded">
+                        <div class="flex justify-between font-bold text-[#00ff88]"><span>${i.ticker}</span><span>Edge: ${(i.agent_edge||0).toFixed(2)}</span></div>
+                        <div class="flex justify-between text-[10px] text-zinc-400 mt-1">
+                            <span>Vol: ${formatMoney(i.volume_24h)}</span>
+                            <span class="${i.change_24h >= 0 ? 'text-green-400' : 'text-red-400'}">${(i.change_24h||0).toFixed(2)}%</span>
+                        </div>
+                    </div>`).join('') : '<div class="text-zinc-600 text-xs mt-4">Awaiting Signal...</div>';
+
+                // Q2: Active Matrix (All non-frozen)
+                const q2 = a.filter(i => i.stance !== 'GLOBAL_CIRCUIT_FREEZE');
+                document.getElementById('q2-count').innerText = q2.length;
+                document.getElementById('q2-list').innerHTML = q2.length > 0 ? q2.map(i => `
+                    <div class="p-2 border border-zinc-800 bg-black/40 rounded flex justify-between items-center">
+                        <span class="text-blue-400 font-bold">${i.ticker}</span>
+                        <div class="text-right">
+                            <div class="text-xs text-zinc-300">Vol: ${formatMoney(i.volume_24h)}</div>
+                            <div class="text-[10px] text-zinc-500">${i.cycle_phase}</div>
+                        </div>
+                    </div>`).join('') : '<div class="text-zinc-600 text-xs mt-4">Awaiting Signal...</div>';
+
+                // Q3: Frozen Circuits
+                const q3 = a.filter(i => i.stance === 'GLOBAL_CIRCUIT_FREEZE' || i.system_entropy > 45.0);
+                document.getElementById('q3-count').innerText = q3.length;
+                document.getElementById('q3-list').innerHTML = q3.length > 0 ? q3.map(i => `
+                    <div class="p-3 bg-red-500/10 border border-red-500/30 rounded">
+                        <div class="flex justify-between font-bold text-red-500"><span>${i.ticker}</span><span>Z: ${(i.system_entropy||0).toFixed(2)}</span></div>
+                        <div class="text-[10px] text-zinc-400 mt-1 uppercase">Circuit Frozen - Excessive Noise</div>
+                    </div>`).join('') : '<div class="text-zinc-600 text-xs mt-4">System nominal.</div>';
+
+                // Q4: Topology
+                const q4 = a.filter(i => i.topological_signature && i.topological_signature !== "UNKNOWN");
+                document.getElementById('q4-count').innerText = q4.length;
+                document.getElementById('q4-list').innerHTML = q4.length > 0 ? q4.map(i => `
+                    <div class="p-3 border border-zinc-800 bg-black/40 rounded">
+                        <div class="flex justify-between font-bold text-[#ff9900]"><span>${i.ticker}</span><span>${i.topological_signature}</span></div>
+                        <div class="flex justify-between text-[10px] text-zinc-400 mt-1"><span>Void Gravity: ${(i.void_gravity||0).toFixed(4)}</span></div>
+                    </div>`).join('') : '<div class="text-zinc-600 text-xs mt-4">Awaiting Signal...</div>';
+
+            } catch(e) { console.error("Poll Error:", e); }
+        }
+        setInterval(pollMatrix, 2000);
+        pollMatrix();
+    </script>
+</body>
+</html>

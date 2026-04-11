@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html class="bg-black">
+<head>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>JC-SDK | 5D Tensor Cube</title>
+</head>
+<body class="m-0 overflow-hidden bg-black font-mono">
+    <div id="ui-overlay" class="absolute top-4 left-4 z-10 text-zinc-400 text-xs bg-black/50 p-3 border border-zinc-800 rounded pointer-events-none">
+        <h1 class="text-[#00ff88] font-bold uppercase tracking-widest mb-1">Hegemon V138 Tensor Cube</h1>
+        <div>X-Axis: Velocity (<span class="text-white">viz_x</span>)</div>
+        <div>Y-Axis: Acceleration (<span class="text-white">viz_y</span>)</div>
+        <div>Z-Axis: System Entropy (<span class="text-white">viz_z</span>)</div>
+        <div class="mt-2 text-[9px] text-zinc-500">COLOR = Bayesian Confidence</div>
+    </div>
+
+    <div id="cube" style="width:100vw; height:100vh;"></div>
+    
+    <script>
+        // Smooth scaling for massive entropy spikes
+        const robustScale = (arr) => {
+            const scaled = arr.map(v => Math.asinh(v)); 
+            const m = Math.min(...scaled), x = Math.max(...scaled);
+            return x === m ? scaled.map(() => 0.5) : scaled.map(v => (v - m) / (x - m));
+        };
+        
+        async function sync() {
+            try {
+                const r = await fetch('http://localhost:8080/api/state');
+                const s = await r.json();
+                
+                let a = [];
+                if (Array.isArray(s.assets)) a = s.assets;
+                else if (s.assets && typeof s.assets === 'object') a = Object.values(s.assets);
+
+                if(a.length === 0) return;
+
+                const trace = {
+                    x: robustScale(a.map(i => i.viz_x || 0)), // Momentum
+                    y: robustScale(a.map(i => i.viz_y || 0)), // Force
+                    z: robustScale(a.map(i => i.system_entropy || 0)), // Heat/Entropy
+                    hovertext: a.map(i => `<b>${i.ticker}</b><br>Phase: ${i.cycle_phase}<br>Entropy (Z): ${(i.system_entropy || 0).toFixed(2)}<br>Bayes: ${(i.bayesian_conf || 0).toFixed(4)}`),
+                    hoverinfo: 'text',
+                    mode: 'markers', 
+                    type: 'scatter3d',
+                    marker: { 
+                        size: 14, 
+                        color: a.map(i => i.bayesian_conf || 0), // Heatmap maps to Pull/Confidence
+                        colorscale: 'Viridis', 
+                        opacity: 0.9,
+                        symbol: 'circle',
+                        line: {color: '#ffffff', width: 0.5}
+                    }
+                };
+
+                Plotly.react('cube', [trace], {
+                    uirevision: 'true', // View-Lock: Stops camera from resetting
+                    paper_bgcolor: 'black', margin: {l:0,r:0,b:0,t:0},
+                    scene: { 
+                        xaxis: {gridcolor:'#222', title:'VELOCITY', showbackground: false}, 
+                        yaxis: {gridcolor:'#222', title:'ACCELERATION', showbackground: false}, 
+                        zaxis: {gridcolor:'#222', title:'ENTROPY (Z)', showbackground: false} 
+                    }
+                });
+            } catch(e) { console.error("Cube Sync Error:", e); }
+        }
+        
+        setInterval(sync, 5000); 
+        sync();
+    </script>
+</body>
+</html>

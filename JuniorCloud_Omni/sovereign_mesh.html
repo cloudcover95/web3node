@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html class="bg-[#0b0c10] text-zinc-300">
+<head>
+    <meta charset="UTF-8">
+    <title>JC-SDK | Sovereign Command Mesh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { display: block; width: 4px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 136, 0.5); }
+        .glass-panel { background: rgba(15, 18, 25, 0.90); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .scanline {
+            width: 100%; height: 2px; background: rgba(0, 255, 136, 0.1);
+            position: absolute; top: 0; left: 0; z-index: 50; pointer-events: none;
+            animation: scan 4s linear infinite;
+        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+    </style>
+</head>
+<body class="bg-[#0b0c10] font-mono h-screen w-screen overflow-hidden text-sm flex p-4 gap-4 relative">
+    <div class="scanline"></div>
+
+    <div class="flex flex-col gap-4 w-[28%] h-full z-10">
+        <div class="glass-panel p-5 rounded h-1/2 flex flex-col shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 p-2 text-[9px] text-zinc-600">BRANCH: SOVEREIGN SDK</div>
+            <h2 class="text-[#66b3ff] font-bold uppercase border-b border-zinc-800 pb-2 mb-3 tracking-widest text-[13px] flex justify-between">
+                <span>Reality A</span>
+                <span class="text-blue-900 bg-blue-500/20 px-2 py-0.5 rounded text-[10px] animate-pulse">LIVE</span>
+            </h2>
+            <div class="text-[11px] text-zinc-500 mb-3 uppercase tracking-wider">Engine 'ACCUMULATE' Triggers:</div>
+            <div id="reality-a-log" class="overflow-y-auto space-y-2 pr-2 flex-1">
+                <div class="text-zinc-600 text-center mt-10 text-xs">Awaiting Matrix Pulse...</div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-5 rounded h-1/2 flex flex-col shadow-2xl relative">
+            <h2 class="text-[#ff9900] font-bold uppercase border-b border-zinc-800 pb-2 mb-3 tracking-widest text-[13px] flex justify-between items-center">
+                <span>Reality C</span>
+                <button onclick="clearSandbox()" class="text-red-500 hover:text-red-400 text-[10px] bg-red-500/10 px-2 py-1 rounded transition-colors">PURGE DB</button>
+            </h2>
+            <div class="text-[11px] text-zinc-500 mb-3 uppercase tracking-wider">Simulated Execution Ledger:</div>
+            <div id="reality-c-log" class="overflow-y-auto space-y-2 pr-2 flex-1">
+                </div>
+        </div>
+    </div>
+
+    <div class="glass-panel rounded flex-1 flex flex-col p-8 shadow-2xl relative z-10">
+        <div class="absolute top-6 right-6 text-[10px] bg-zinc-900 px-3 py-1.5 rounded text-zinc-500 border border-zinc-800 tracking-widest uppercase">
+            Sovereign Command
+        </div>
+        
+        <div class="mb-8">
+            <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Target Identity</div>
+            <div class="flex items-baseline gap-4">
+                <h1 class="text-4xl font-bold text-white tracking-widest" id="inspector-ticker">AWAITING</h1>
+                <span id="inspector-hash" class="text-sm font-mono text-zinc-600 bg-zinc-900 px-2 py-1 rounded">#00000000</span>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <div class="bg-black/60 p-5 rounded border border-zinc-800/80 hover:border-zinc-600 transition-colors">
+                <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Cycle Phase</div>
+                <div class="text-xl font-bold tracking-wide" id="inspector-phase">--</div>
+            </div>
+            <div class="bg-black/60 p-5 rounded border border-zinc-800/80 hover:border-zinc-600 transition-colors">
+                <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Arbitrator Stance</div>
+                <div class="text-xl font-bold tracking-wide text-white" id="inspector-stance">--</div>
+            </div>
+            <div class="bg-black/60 p-5 rounded border border-zinc-800/80 hover:border-zinc-600 transition-colors">
+                <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-2 flex justify-between">
+                    <span>System Entropy (Z)</span>
+                    <span class="text-red-500" id="entropy-warn"></span>
+                </div>
+                <div class="text-xl font-bold text-white" id="inspector-entropy">--</div>
+            </div>
+            <div class="bg-black/60 p-5 rounded border border-zinc-800/80 hover:border-zinc-600 transition-colors">
+                <div class="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Agent Edge (RL)</div>
+                <div class="text-xl font-bold text-white" id="inspector-edge">--</div>
+            </div>
+        </div>
+
+        <div class="mt-auto pt-6 border-t border-zinc-800">
+            <button id="btn-execute" onclick="executeUserTrade()" disabled class="w-full py-5 rounded font-bold uppercase tracking-widest text-sm transition-all bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed">
+                [ Select Target to Arm Execution ]
+            </button>
+        </div>
+    </div>
+
+    <div class="glass-panel p-5 rounded w-[28%] flex flex-col shadow-2xl z-10">
+        <h2 class="text-[#00ff88] font-bold uppercase text-[13px] border-b border-zinc-800 pb-2 mb-4 tracking-widest flex justify-between items-center">
+            <span>Live Matrix Feed</span>
+            <span class="text-[10px] text-zinc-400 bg-black/60 px-2 py-1 rounded border border-zinc-800" id="feed-count">0 MOVERS</span>
+        </h2>
+        
+        <div id="target-list" class="overflow-y-auto space-y-2.5 pr-2 flex-1 pb-2">
+            <div class="text-center text-zinc-500 text-xs mt-10 animate-pulse">Establishing Node Uplink...</div>
+        </div>
+    </div>
+
+    <script>
+        let liveData = {};
+        let selectedTarget = null;
+        let realityC_Ledger = JSON.parse(localStorage.getItem('jc_sandbox_ledger')) || [];
+        let realityA_Ledger = new Set(); 
+
+        const phaseColors = {
+            "EARLY_RECOVERY": "#00ff88", "BULL_MARKET": "#00e600",
+            "MARKET_TOP": "#ffd700", "EARLY_RECESSION": "#ff9900",
+            "FULL_RECESSION": "#ff3333", "BEAR_MARKET": "#ff0066",
+            "LATE_BEAR_MARKET": "#9966ff", "MARKET_BOTTOM": "#3399ff"
+        };
+
+        function updateRightPanel(assets) {
+            const container = document.getElementById('target-list');
+            document.getElementById('feed-count').innerText = `${assets.length} MOVERS`;
+            
+            assets.sort((a, b) => {
+                if(a.stance === 'STRATEGIC_ACCUMULATE' && b.stance !== 'STRATEGIC_ACCUMULATE') return -1;
+                if(b.stance === 'STRATEGIC_ACCUMULATE' && a.stance !== 'STRATEGIC_ACCUMULATE') return 1;
+                return (b.agent_edge || 0) - (a.agent_edge || 0);
+            });
+            
+            container.innerHTML = assets.map(d => {
+                const color = phaseColors[d.cycle_phase] || '#888';
+                const isFreeze = d.stance.includes("FREEZE");
+                const stanceColor = d.stance === 'STRATEGIC_ACCUMULATE' ? 'text-[#00ff88]' : isFreeze ? 'text-red-500' : 'text-zinc-400';
+                
+                return `
+                <div class="p-3 bg-black/60 border border-zinc-800 rounded cursor-pointer transition-all hover:bg-zinc-900 group" 
+                     style="border-left: 3px solid ${color}" onclick="selectTarget('${d.ticker}')">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold text-white tracking-wide">${d.ticker}</span>
+                        <span class="text-[9px] text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider" style="background-color: ${color}">${d.cycle_phase || 'UNKNOWN'}</span>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-mono font-medium">
+                        <span class="${stanceColor}">${d.stance}</span>
+                        <span class="text-zinc-600">${d._metadata?.hash || d._hash || 'No Hash'}</span>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function selectTarget(ticker) {
+            selectedTarget = liveData[ticker];
+            const d = selectedTarget;
+            const color = phaseColors[d.cycle_phase] || '#888';
+            
+            document.getElementById('inspector-ticker').innerText = d.ticker;
+            document.getElementById('inspector-hash').innerText = d._metadata?.hash || d._hash || 'NO-HASH-FOUND';
+            document.getElementById('inspector-phase').innerText = d.cycle_phase || 'UNKNOWN';
+            document.getElementById('inspector-phase').style.color = color;
+            
+            const ent = d.system_entropy || 0;
+            document.getElementById('inspector-entropy').innerText = ent.toFixed(4);
+            document.getElementById('entropy-warn').innerText = ent > 45 ? '⚠️ HIGH NOISE' : '';
+            
+            document.getElementById('inspector-edge').innerText = (d.agent_edge || 0).toFixed(4);
+            
+            document.getElementById('inspector-stance').innerText = d.stance;
+            document.getElementById('inspector-stance').style.color = d.stance === 'STRATEGIC_ACCUMULATE' ? '#00ff88' : d.stance.includes("FREEZE") ? '#ef4444' : '#fff';
+
+            const btn = document.getElementById('btn-execute');
+            btn.disabled = false;
+            btn.innerText = `EXECUTE SIMULATED TRADE: ${d.ticker}`;
+            btn.className = "w-full py-5 rounded font-bold uppercase tracking-widest text-sm transition-all bg-[#ff9900] text-black hover:bg-[#cc7a00] hover:shadow-[0_0_20px_rgba(255,153,0,0.3)] cursor-pointer";
+        }
+
+        function executeUserTrade() {
+            if (!selectedTarget) return;
+            const trade = {
+                ticker: selectedTarget.ticker,
+                timestamp: new Date().toLocaleTimeString(),
+                hash: selectedTarget._metadata?.hash || selectedTarget._hash || 'N/A',
+                edge: (selectedTarget.agent_edge || 0).toFixed(4)
+            };
+            realityC_Ledger.unshift(trade);
+            if(realityC_Ledger.length > 50) realityC_Ledger.pop();
+            localStorage.setItem('jc_sandbox_ledger', JSON.stringify(realityC_Ledger));
+            renderRealityC();
+            
+            const btn = document.getElementById('btn-execute');
+            btn.innerText = "TRADE LOGGED TO SANDBOX";
+            btn.classList.add('bg-green-500', 'text-white');
+            btn.classList.remove('bg-[#ff9900]', 'text-black');
+            setTimeout(() => { selectTarget(selectedTarget.ticker); }, 1500);
+        }
+
+        function renderRealityC() {
+            const container = document.getElementById('reality-c-log');
+            if (realityC_Ledger.length === 0) {
+                container.innerHTML = '<div class="text-zinc-600 text-center mt-10 text-xs">No simulated executions.</div>';
+                return;
+            }
+            container.innerHTML = realityC_Ledger.map(t => `
+                <div class="bg-black/60 p-2.5 rounded border border-zinc-800 text-[11px]">
+                    <div class="flex justify-between font-bold text-white mb-1.5">
+                        <span>${t.ticker}</span>
+                        <span class="text-zinc-500 font-normal font-mono">${t.timestamp}</span>
+                    </div>
+                    <div class="flex justify-between text-zinc-400 font-mono">
+                        <span class="text-zinc-600">[${t.hash}]</span>
+                        <span class="text-[#ff9900]">EDGE: ${t.edge}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearSandbox() {
+            realityC_Ledger = [];
+            localStorage.removeItem('jc_sandbox_ledger');
+            renderRealityC();
+        }
+
+        function updateRealityA(assets) {
+            const container = document.getElementById('reality-a-log');
+            let updated = false;
+
+            assets.forEach(a => {
+                if (a.stance === 'STRATEGIC_ACCUMULATE' && !realityA_Ledger.has(a.ticker)) {
+                    realityA_Ledger.add(a.ticker);
+                    const el = document.createElement('div');
+                    el.className = "bg-[#00ff88]/5 p-2.5 rounded border border-[#00ff88]/20 text-[11px]";
+                    el.innerHTML = `
+                        <div class="flex justify-between font-bold text-[#00ff88] mb-1.5">
+                            <span>${a.ticker} <span class="bg-[#00ff88] text-black px-1 rounded text-[9px] ml-1">SDK AUTO</span></span>
+                            <span class="text-zinc-500 font-normal font-mono">${new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <div class="flex justify-between text-zinc-400 font-mono">
+                            <span class="text-zinc-600">[${a._metadata?.hash || a._hash || 'N/A'}]</span>
+                            <span>EDGE: ${(a.agent_edge || 0).toFixed(4)}</span>
+                        </div>
+                    `;
+                    container.prepend(el);
+                    updated = true;
+                }
+            });
+            
+            if (updated && container.innerHTML.includes('Awaiting Matrix Pulse')) {
+                container.innerHTML = container.lastElementChild.outerHTML;
+            }
+        }
+
+        async function syncSovereignNode() {
+            try {
+                const response = await fetch('/api/state');
+                const state = await response.json();
+                
+                let assets = [];
+                if (Array.isArray(state.assets)) assets = state.assets;
+                else if (state.assets && typeof state.assets === 'object') assets = Object.values(state.assets);
+                
+                if (assets.length > 0) {
+                    assets.forEach(a => liveData[a.ticker] = a);
+                    updateRightPanel(assets);
+                    updateRealityA(assets);
+                    
+                    if (selectedTarget && liveData[selectedTarget.ticker]) {
+                        selectTarget(selectedTarget.ticker);
+                    }
+                }
+            } catch (err) {
+                console.error("Node offline or API unreachable.");
+            }
+        }
+
+        renderRealityC();
+        syncSovereignNode();
+        setInterval(syncSovereignNode, 10000); 
+    </script>
+</body>
+</html>

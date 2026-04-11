@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html class="bg-[#050608] text-zinc-300">
+<head>
+    <meta charset="UTF-8">
+    <title>Sovereign | 5D Kinematic Globe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* Hide scrollbars but keep functionality */
+        ::-webkit-scrollbar { display: none; }
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
+        #ui-layer { position: relative; z-index: 10; pointer-events: none; } /* Let clicks pass to canvas */
+        .pointer-events-auto { pointer-events: auto; }
+    </style>
+</head>
+<body class="bg-[#050608] font-mono h-screen w-screen">
+
+    <div id="ui-layer" class="w-full h-full p-4 flex justify-between">
+        
+        <div class="flex flex-col gap-4 w-64">
+            <div class="border border-zinc-800 bg-black/80 p-4 rounded pointer-events-auto">
+                <h2 class="text-blue-500 font-bold uppercase border-b border-zinc-800 pb-2 mb-2 text-[12px]">Hegemon V119</h2>
+                <div class="text-[10px] space-y-2 text-zinc-500">
+                    <div class="flex justify-between"><span>TOPOLOGY:</span><span class="text-zinc-300">SPHERICAL</span></div>
+                    <div class="flex justify-between"><span>ENGINE:</span><span class="text-zinc-300">APPLE_MPS</span></div>
+                    <div class="flex justify-between"><span>SYNC:</span><span id="sync-status" class="text-amber-400">POLLING</span></div>
+                </div>
+            </div>
+            
+            <div class="border border-zinc-800 bg-black/80 p-4 rounded pointer-events-auto text-[10px] text-zinc-500">
+                <p>The center represents the <strong>Great Attractor</strong> (High Bayesian Confidence).</p>
+                <p class="mt-2">The boundary is the <strong>Local Void</strong> (High Entropy / Noise).</p>
+            </div>
+        </div>
+
+        <div id="inspector-pane" class="w-80 border border-zinc-800 bg-black/90 p-4 rounded pointer-events-auto hidden flex-col transition-opacity">
+            <div class="flex justify-between items-baseline border-b border-zinc-800 pb-2 mb-3">
+                <h2 id="ui-ticker" class="text-amber-400 font-bold uppercase text-[14px] tracking-wider">TICKER</h2>
+                <span id="ui-sdr-hex" class="px-2 py-0.5 rounded text-[9px] font-bold text-black tracking-widest bg-white">#000000</span>
+            </div>
+            
+            <div class="space-y-3 text-[11px]">
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Arbitrator Stance:</span>
+                    <span id="ui-stance" class="text-emerald-400 font-bold">HOLD_POSITION</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Hilbert Phase:</span>
+                    <span id="ui-phase" class="text-blue-400 font-bold">UNKNOWN</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">System Entropy (Z):</span>
+                    <span id="ui-entropy" class="text-zinc-300">0.0000</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Kinematic Vector:</span>
+                    <span id="ui-kinematics" class="text-zinc-300">0.00, 0.00</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-zinc-500">Bayesian Pull:</span>
+                    <span id="ui-bayes" class="text-white">0.0000</span>
+                </div>
+            </div>
+            
+            <div class="mt-4 border border-zinc-800 p-1 rounded">
+                <div id="gradient-bar" class="h-1.5 w-full rounded bg-gradient-to-r from-transparent to-white"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- 1. THREE.JS SCENE SETUP (Tailwind Native Colors) ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050608, 0.0025); // Matches bg-[#050608]
+        
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 30, 100);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "low-power" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const GLOBE_RADIUS = 60;
+
+        // Bounding Sphere (The Local Void)
+        const sphereGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 32, 32);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0x27272a, wireframe: true, transparent: true, opacity: 0.15 }); // zinc-800
+        const boundingSphere = new THREE.Mesh(sphereGeo, sphereMat);
+        scene.add(boundingSphere);
+
+        // Airy Sand (Dark Matter Background)
+        const sandCount = 10000;
+        const sandGeo = new THREE.BufferGeometry();
+        const sandPos = new Float32Array(sandCount * 3);
+        for(let i=0; i<sandCount*3; i+=3) {
+            const r = GLOBE_RADIUS * Math.cbrt(Math.random());
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            sandPos[i] = r * Math.sin(phi) * Math.cos(theta);
+            sandPos[i+1] = r * Math.sin(phi) * Math.sin(theta);
+            sandPos[i+2] = r * Math.cos(phi);
+        }
+        sandGeo.setAttribute('position', new THREE.BufferAttribute(sandPos, 3));
+        const sandMat = new THREE.PointsMaterial({ color: 0x3f3f46, size: 0.1, transparent: true, opacity: 0.3 }); // zinc-700
+        const sandSystem = new THREE.Points(sandGeo, sandMat);
+        scene.add(sandSystem);
+
+        // --- 2. INSTANCED MESH (The Kinematic Streaks) ---
+        const MAX_MOVERS = 2000;
+        let activeMovers = 0;
+        const streakGeo = new THREE.CylinderGeometry(0.3, 0.3, 5, 6); 
+        streakGeo.translate(0, 2.5, 0);
+        streakGeo.rotateX(Math.PI / 2);
+
+        const pastelShader = new THREE.ShaderMaterial({
+            vertexShader: `
+                attribute vec3 instanceColor;
+                varying vec3 vColor;
+                void main() {
+                    vColor = instanceColor;
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    gl_FragColor = vec4(vColor, 0.9); 
+                }
+            `,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+
+        const moversMesh = new THREE.InstancedMesh(streakGeo, pastelShader, MAX_MOVERS);
+        const dummy = new THREE.Object3D();
+        const colors = new Float32Array(MAX_MOVERS * 3);
+        let ledgerData = [];
+        
+        // Initial setup to prevent crash before data loads
+        moversMesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+        moversMesh.count = 0; 
+        scene.add(moversMesh);
+
+        // --- 3. LIVE DATA BRIDGE (Like crypto_cube.html) ---
+        const phaseColors = {
+            "EARLY_RECOVERY": [0.2, 0.8, 0.4], "BULL_MARKET": [0.1, 0.9, 0.2],
+            "MARKET_TOP": [0.9, 0.8, 0.1], "EARLY_RECESSION": [0.9, 0.5, 0.1],
+            "FULL_RECESSION": [0.9, 0.1, 0.1], "BEAR_MARKET": [0.6, 0.1, 0.3],
+            "LATE_BEAR_MARKET": [0.4, 0.4, 0.6], "MARKET_BOTTOM": [0.2, 0.5, 0.9]
+        };
+        const phaseKeys = Object.keys(phaseColors);
+
+        async function syncSovereignNode() {
+            try {
+                // Hitting the local node API
+                const response = await fetch('http://localhost:8080/api/state');
+                const state = await response.json();
+                const assets = state.assets || [];
+                
+                if(assets.length > 0) {
+                    document.getElementById('sync-status').innerText = "LIVE (SYNCED)";
+                    document.getElementById('sync-status').className = "text-emerald-400";
+                    updateMeshFromAPI(assets);
+                }
+            } catch (e) {
+                console.warn("Node offline or unreachable. Rendering V119 Simulation Data...");
+                document.getElementById('sync-status').innerText = "OFFLINE (SIMULATION)";
+                document.getElementById('sync-status').className = "text-zinc-500";
+                generateMockData(); // Fallback for UI iteration
+            }
+        }
+
+        function updateMeshFromAPI(assets) {
+            activeMovers = Math.min(assets.length, MAX_MOVERS);
+            ledgerData = [];
+            
+            for (let i = 0; i < activeMovers; i++) {
+                const a = assets[i];
+                // Map the new Hegemon keys, fallback to legacy robust_z kinematics if running old python node
+                const x = a.viz_x || a.velocity || 0;
+                const y = a.viz_y || a.acceleration || 0;
+                const z = a.viz_z || a.robust_z || 0;
+                const bayes = a.bayesian_confidence || a.q_mark || 0.5;
+                
+                const phase = a.cycle_phase || phaseKeys[Math.floor(Math.random() * phaseKeys.length)];
+                const cRGB = phaseColors[phase] || [0.5, 0.5, 0.5];
+                
+                colors[i*3] = cRGB[0]; colors[i*3+1] = cRGB[1]; colors[i*3+2] = cRGB[2];
+
+                ledgerData.push({
+                    ticker: a.short_tag || a.ticker || `AST-${i}`,
+                    x: x, y: y, z: z,
+                    bayes: bayes,
+                    phase: phase,
+                    stance: a.stance || a.tax_call || "WATCHING",
+                    hex: '#' + cRGB.map(v => Math.round(v*255).toString(16).padStart(2, '0')).toUpperCase(),
+                    // Track position physically in JS so we can animate it
+                    pos: new THREE.Vector3(x, z - (GLOBE_RADIUS/2), y), 
+                    vel: new THREE.Vector3(x * 0.05, 0, y * 0.05)
+                });
+            }
+            moversMesh.count = activeMovers;
+            moversMesh.geometry.attributes.instanceColor.needsUpdate = true;
+        }
+
+        function generateMockData() {
+            activeMovers = 500;
+            ledgerData = [];
+            for (let i = 0; i < activeMovers; i++) {
+                const phase = phaseKeys[Math.floor(Math.random() * phaseKeys.length)];
+                const cRGB = phaseColors[phase];
+                colors[i*3] = cRGB[0]; colors[i*3+1] = cRGB[1]; colors[i*3+2] = cRGB[2];
+
+                const x = (Math.random() - 0.5) * 20;
+                const y = (Math.random() - 0.5) * 20;
+                const z = (Math.random() * 50);
+
+                ledgerData.push({
+                    ticker: `HGM-${Math.floor(Math.random()*900)+100}`,
+                    x: x, y: y, z: z,
+                    bayes: Math.random(),
+                    phase: phase,
+                    stance: z > 40 ? "GLOBAL_CIRCUIT_FREEZE" : "STRATEGIC_ACCUMULATE",
+                    hex: '#' + cRGB.map(v => Math.round(v*255).toString(16).padStart(2, '0')).toUpperCase(),
+                    pos: new THREE.Vector3(x, z - (GLOBE_RADIUS/2), y),
+                    vel: new THREE.Vector3(x * 0.05, 0, y * 0.05)
+                });
+            }
+            moversMesh.count = activeMovers;
+            moversMesh.geometry.attributes.instanceColor.needsUpdate = true;
+        }
+
+        // --- 4. RAYCASTING (Tailwind Inspector Update) ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const uiPane = document.getElementById('inspector-pane');
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            raycaster.params.InstancedMesh.threshold = 1.0; 
+            
+            if(moversMesh.count > 0) {
+                const intersects = raycaster.intersectObject(moversMesh);
+                if (intersects.length > 0) {
+                    const data = ledgerData[intersects[0].instanceId];
+                    if(data) {
+                        document.getElementById('ui-ticker').innerText = data.ticker;
+                        document.getElementById('ui-sdr-hex').innerText = data.hex;
+                        document.getElementById('ui-sdr-hex').style.color = data.hex;
+                        
+                        const stanceEl = document.getElementById('ui-stance');
+                        stanceEl.innerText = data.stance;
+                        stanceEl.className = data.stance.includes("ACCUMULATE") ? "text-emerald-400 font-bold" : 
+                                            (data.stance.includes("FREEZE") || data.stance.includes("HARVEST") ? "text-red-500 font-bold" : "text-blue-500 font-bold");
+                        
+                        document.getElementById('ui-phase').innerText = data.phase;
+                        document.getElementById('ui-entropy').innerText = data.z.toFixed(4);
+                        document.getElementById('ui-kinematics').innerText = `${data.x.toFixed(2)}, ${data.y.toFixed(2)}`;
+                        document.getElementById('ui-bayes').innerText = data.bayes.toFixed(4);
+                        
+                        document.getElementById('gradient-bar').style.background = `linear-gradient(90deg, #050608 0%, ${data.hex} 100%)`;
+                        
+                        uiPane.classList.remove('hidden');
+                        uiPane.classList.add('flex');
+                        document.body.style.cursor = 'crosshair';
+                    }
+                } else {
+                    uiPane.classList.add('hidden');
+                    uiPane.classList.remove('flex');
+                    document.body.style.cursor = 'default';
+                }
+            }
+        });
+
+        // --- 5. RENDER LOOP ---
+        const targetPos = new THREE.Vector3();
+        function animate() {
+            requestAnimationFrame(animate);
+            boundingSphere.rotation.y += 0.0005;
+            sandSystem.rotation.y -= 0.0002;
+
+            for (let i = 0; i < activeMovers; i++) {
+                const data = ledgerData[i];
+                if(!data) continue;
+
+                // Move position along velocity vector
+                data.pos.add(data.vel);
+
+                // Bayesian Gravity: Pull to center or push to Void
+                const distToCenter = data.pos.length();
+                const targetRadius = GLOBE_RADIUS * (1.0 - data.bayes);
+                
+                // If it hits the Void boundary, wrap/reflect it
+                if (distToCenter > GLOBE_RADIUS) data.pos.multiplyScalar(-0.99);
+
+                targetPos.copy(data.pos).add(data.vel);
+                dummy.position.copy(data.pos);
+                dummy.lookAt(targetPos);
+                
+                // Scale length by kinematic force
+                const kinForce = Math.sqrt(data.x**2 + data.y**2);
+                dummy.scale.set(1, 1, kinForce * 0.1 + 1);
+                dummy.updateMatrix();
+                moversMesh.setMatrixAt(i, dummy.matrix);
+            }
+            moversMesh.instanceMatrix.needsUpdate = true;
+
+            // Camera Orbit
+            camera.position.x = Math.sin(Date.now() * 0.0001) * 120;
+            camera.position.z = Math.cos(Date.now() * 0.0001) * 120;
+            camera.lookAt(0, 0, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        // Init
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start pulse loop (like crypto_cube.html)
+        syncSovereignNode();
+        setInterval(syncSovereignNode, 5000); // Poll API every 5 seconds
+        animate();
+    </script>
+</body>
+</html>

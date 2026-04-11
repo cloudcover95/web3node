@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html class="bg-[#0f111a] text-zinc-200">
+<head>
+    <meta charset="UTF-8">
+    <title>JC-SDK | Sovereign Heatmap Lens</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { display: none; }
+        body { margin: 0; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
+        #ui-layer { position: relative; z-index: 10; pointer-events: none; } 
+        .pointer-events-auto { pointer-events: auto; }
+        .glass-panel { background: rgba(15, 18, 25, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+</head>
+<body class="bg-[#0f111a] h-screen w-screen text-sm">
+
+    <div id="ui-layer" class="w-full h-full p-5 flex justify-between">
+        <div class="flex flex-col gap-3 w-80">
+            <div class="glass-panel p-5 rounded pointer-events-auto shadow-2xl shrink-0">
+                <h2 class="text-[#00ff88] font-bold uppercase text-[13px] border-b border-zinc-700 pb-2 mb-3 tracking-widest flex justify-between">
+                    <span>Profitability Matrix</span>
+                    <span class="text-zinc-500">EMULATOR</span>
+                </h2>
+                
+                <div class="mb-4">
+                    <label class="text-[10px] text-zinc-400 uppercase tracking-widest mb-2 block">Projection Timeframe</label>
+                    <div class="flex gap-1 bg-black/50 p-1 rounded border border-zinc-800" id="timeframe-selector">
+                        <button class="flex-1 py-1 text-[11px] font-bold rounded bg-zinc-800 text-white transition-colors" onclick="setTimeframe(this)">1D</button>
+                        <button class="flex-1 py-1 text-[11px] font-bold rounded text-zinc-500 hover:text-white transition-colors" onclick="setTimeframe(this)">1W</button>
+                        <button class="flex-1 py-1 text-[11px] font-bold rounded text-zinc-500 hover:text-white transition-colors" onclick="setTimeframe(this)">1M</button>
+                        <button class="flex-1 py-1 text-[11px] font-bold rounded text-zinc-500 hover:text-white transition-colors" onclick="setTimeframe(this)">1Y</button>
+                    </div>
+                </div>
+
+                <div id="global-metrics" class="space-y-2 text-zinc-300 border-t border-zinc-700 pt-3">
+                    <div class="flex justify-between items-center"><span>ACTIVE MOVERS</span><span id="g-count" class="text-white font-bold text-base">0000</span></div>
+                    <div class="flex justify-between items-center"><span>PEAK EXTRUSION (CONF)</span><span id="g-bayes" class="text-[#00ff88] font-bold text-base">0.0000</span></div>
+                </div>
+            </div>
+
+            <div id="inspector-pane" class="glass-panel p-4 rounded pointer-events-auto transition-opacity duration-200 opacity-0 shadow-2xl">
+                <div class="flex justify-between items-baseline border-b border-zinc-700 pb-2 mb-3">
+                    <h2 id="ui-ticker" class="text-white font-bold text-lg tracking-wider">TICKER</h2>
+                    <span id="ui-sdr-hex" class="px-2 py-1 rounded text-[10px] font-bold text-black shadow-inner">#000000</span>
+                </div>
+                <div class="space-y-2 text-xs font-medium">
+                    <div class="flex justify-between"><span class="text-zinc-400">Hilbert Phase:</span><span id="ui-phase" class="text-white font-bold">UNKNOWN</span></div>
+                    <div class="flex justify-between"><span class="text-zinc-400">Projected Profit Conf:</span><span id="ui-bayes" class="text-[#00ff88]">0.0000</span></div>
+                    <div class="flex justify-between"><span class="text-zinc-400">Kinematic X (Vel):</span><span id="ui-vel" class="text-white">0.0000</span></div>
+                </div>
+                <div id="gradient-bar" class="h-1.5 w-full rounded mt-4 opacity-90 shadow-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0f111a, 0.002); 
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 30, 150);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const GLOBE_RADIUS = 60;
+        
+        // --- TIMEFRAME EMULATOR CONSTANTS ---
+        let currentHorizon = "1D";
+        const horizonMultipliers = { "1D": 1.0, "1W": 1.8, "1M": 3.5, "1Y": 7.2 };
+
+        const sphereGeo = new THREE.SphereGeometry(GLOBE_RADIUS - 0.5, 32, 32);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0x050608, transparent: true, opacity: 0.8 });
+        const coreSphere = new THREE.Mesh(sphereGeo, sphereMat);
+        scene.add(coreSphere);
+
+        const wireMat = new THREE.MeshBasicMaterial({ color: 0x27273a, wireframe: true, transparent: true, opacity: 0.2 });
+        const wireSphere = new THREE.Mesh(sphereGeo, wireMat);
+        scene.add(wireSphere);
+
+        const MAX_MOVERS = 1200; 
+        let activeMovers = 0;
+        
+        const spikeGeo = new THREE.BoxGeometry(0.8, 1, 0.8);
+        spikeGeo.translate(0, 0.5, 0); 
+
+        const spikeMat = new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending
+        });
+
+        const spikeMesh = new THREE.InstancedMesh(spikeGeo, spikeMat, MAX_MOVERS);
+        const dummy = new THREE.Object3D();
+        const colors = new Float32Array(MAX_MOVERS * 3);
+        let ledgerData = [];
+        spikeMesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+        scene.add(spikeMesh);
+
+        const phaseColors = {
+            "EARLY_RECOVERY": [0.0, 1.0, 0.53], "BULL_MARKET": [0.0, 0.9, 0.0],
+            "MARKET_TOP": [1.0, 0.84, 0.0], "EARLY_RECESSION": [1.0, 0.6, 0.0],
+            "FULL_RECESSION": [1.0, 0.2, 0.2], "BEAR_MARKET": [1.0, 0.0, 0.4],
+            "LATE_BEAR_MARKET": [0.6, 0.4, 1.0], "MARKET_BOTTOM": [0.2, 0.6, 1.0]
+        };
+        const phaseKeys = Object.keys(phaseColors);
+
+        // --- HELPER: MAPPING TICKERS TO SPHERE SURFACE ---
+        function calculateSurfacePos(i, total) {
+            const r = GLOBE_RADIUS;
+            // Fibonacci Sphere distribution for stable placement
+            const phi = Math.acos(-1 + (2 * i) / total);
+            const theta = Math.sqrt(total * Math.PI) * phi;
+            return new THREE.Vector3(
+                r * Math.sin(phi) * Math.cos(theta),
+                r * Math.sin(phi) * Math.sin(theta),
+                r * Math.cos(phi)
+            );
+        }
+
+        // --- TIMEFRAME EMULATOR LOGIC ---
+        window.setTimeframe = function(btn) {
+            document.querySelectorAll('#timeframe-selector button').forEach(b => {
+                b.classList.remove('bg-zinc-800', 'text-white');
+                b.classList.add('text-zinc-500');
+            });
+            btn.classList.add('bg-zinc-800', 'text-white');
+            btn.classList.remove('text-zinc-500');
+            
+            currentHorizon = btn.innerText;
+            updateExtrusions(); 
+        };
+
+        function updateExtrusions() {
+            if (activeMovers === 0) return;
+            let peakConf = 0;
+            const mult = horizonMultipliers[currentHorizon] || 1.0;
+
+            for (let i = 0; i < activeMovers; i++) {
+                const data = ledgerData[i];
+                if (!data) continue;
+
+                const projectedConf = Math.min(data.base_conf * (1 + (mult * 0.15)), 2.5);
+                if (projectedConf > peakConf) peakConf = projectedConf;
+
+                dummy.position.copy(data.surface_pos);
+                dummy.lookAt(0,0,0);
+                dummy.rotateX(-Math.PI / 2); 
+                
+                dummy.scale.set(1, 1 + (projectedConf * 12), 1); 
+                dummy.updateMatrix();
+                spikeMesh.setMatrixAt(i, dummy.matrix);
+                data.current_conf = projectedConf;
+            }
+            spikeMesh.instanceMatrix.needsUpdate = true;
+            document.getElementById('g-bayes').innerText = peakConf.toFixed(4);
+        }
+
+        // --- DATA SYNC (WITH MOCK OVERRIDE) ---
+        async function syncSovereignNode() {
+            try {
+                const response = await fetch('/api/state');
+                const state = await response.json();
+                
+                let assets = [];
+                if (Array.isArray(state.assets)) assets = state.assets;
+                else if (state.assets && typeof state.assets === 'object') assets = Object.values(state.assets);
+                
+                if (assets.length > 0) {
+                    activeMovers = Math.min(assets.length, MAX_MOVERS);
+                    ledgerData = assets.map((a, i) => {
+                        const c = phaseColors[a.cycle_phase] || [0.5, 0.5, 0.5];
+                        colors[i*3] = c[0]; colors[i*3+1] = c[1]; colors[i*3+2] = c[2];
+                        
+                        return {
+                            ...a,
+                            id: i,
+                            base_conf: a.bayesian_conf || a.profitability_conf || 0.5,
+                            surface_pos: calculateSurfacePos(i, activeMovers),
+                            hex: '#' + c.map(x => Math.round(x*255).toString(16).padStart(2, '0')).join('').toUpperCase(),
+                            vel: a.viz_x || 0
+                        };
+                    });
+                    spikeMesh.instanceColor.needsUpdate = true;
+                    document.getElementById('g-count').innerText = activeMovers.toString().padStart(4, '0');
+                    updateExtrusions();
+                } else {
+                    throw new Error("No live assets");
+                }
+            } catch (err) {
+                if(ledgerData.length === 0) generateMockData();
+            }
+        }
+
+        function generateMockData() {
+            activeMovers = 1200; 
+            ledgerData = [];
+            for (let i = 0; i < activeMovers; i++) {
+                const phase = phaseKeys[Math.floor(Math.random() * phaseKeys.length)];
+                const c = phaseColors[phase];
+                colors[i*3] = c[0]; colors[i*3+1] = c[1]; colors[i*3+2] = c[2];
+                
+                ledgerData.push({
+                    id: i, ticker: `W3-${Math.floor(Math.random()*9000)+1000}`,
+                    phase: phase, base_conf: Math.random(), vel: (Math.random()-0.5)*2,
+                    surface_pos: calculateSurfacePos(i, activeMovers),
+                    hex: '#' + c.map(x => Math.round(x*255).toString(16).padStart(2, '0')).join('').toUpperCase()
+                });
+            }
+            spikeMesh.instanceColor.needsUpdate = true;
+            document.getElementById('g-count').innerText = activeMovers.toString().padStart(4, '0');
+            updateExtrusions();
+        }
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const uiPane = document.getElementById('inspector-pane');
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            raycaster.params.InstancedMesh.threshold = 0.5; 
+            const intersects = raycaster.intersectObject(spikeMesh);
+
+            if (intersects.length > 0 && intersects[0].instanceId < activeMovers) {
+                const data = ledgerData[intersects[0].instanceId];
+                if (!data) return;
+                document.getElementById('ui-ticker').innerText = data.ticker || "UNKNOWN";
+                document.getElementById('ui-sdr-hex').style.backgroundColor = data.hex;
+                document.getElementById('ui-phase').innerText = data.cycle_phase || data.phase;
+                document.getElementById('ui-phase').style.color = data.hex;
+                document.getElementById('ui-bayes').innerText = (data.current_conf || 0).toFixed(4);
+                document.getElementById('ui-vel').innerText = (data.vel || 0).toFixed(4);
+                document.getElementById('gradient-bar').style.background = `linear-gradient(90deg, rgba(15,18,25,0) 0%, ${data.hex} 100%)`;
+                uiPane.style.opacity = '1';
+                document.body.style.cursor = 'crosshair';
+            } else {
+                uiPane.style.opacity = '0';
+                document.body.style.cursor = 'default';
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            coreSphere.rotation.y += 0.0005;
+            wireSphere.rotation.y += 0.0005;
+            spikeMesh.rotation.y += 0.0005;
+            
+            coreSphere.rotation.x = Math.sin(Date.now() * 0.0001) * 0.1;
+            wireSphere.rotation.x = Math.sin(Date.now() * 0.0001) * 0.1;
+            spikeMesh.rotation.x = Math.sin(Date.now() * 0.0001) * 0.1;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- DATA SYNC (STRICT REALITY) ---
+        async function syncSovereignNode() {
+            try {
+                const response = await fetch('/api/state');
+                const state = await response.json();
+                
+                let assets = [];
+                if (Array.isArray(state.assets)) assets = state.assets;
+                else if (state.assets && typeof state.assets === 'object') assets = Object.values(state.assets);
+                
+                if (assets.length > 0) {
+                    activeMovers = Math.min(assets.length, MAX_MOVERS);
+                    ledgerData = assets.map((a, i) => {
+                        const c = phaseColors[a.cycle_phase] || [0.5, 0.5, 0.5];
+                        colors[i*3] = c[0]; colors[i*3+1] = c[1]; colors[i*3+2] = c[2];
+                        
+                        return {
+                            ...a,
+                            id: i,
+                            base_conf: a.bayesian_conf || a.agent_edge || 0.1,
+                            surface_pos: calculateSurfacePos(i, activeMovers),
+                            hex: '#' + c.map(x => Math.round(x*255).toString(16).padStart(2, '0')).join('').toUpperCase(),
+                            vel: a.viz_x || 0
+                        };
+                    });
+                    spikeMesh.instanceColor.needsUpdate = true;
+                    document.getElementById('g-count').innerText = activeMovers.toString().padStart(4, '0');
+                    document.getElementById('g-count').classList.replace('text-zinc-500', 'text-white');
+                    updateExtrusions();
+                } else {
+                    throw new Error("Empty Matrix");
+                }
+            } catch (err) {
+                // Fails gracefully without simulating fake data
+                document.getElementById('g-count').innerText = "AWAITING NODE PULSE";
+                document.getElementById('g-count').classList.replace('text-white', 'text-zinc-500');
+                activeMovers = 0;
+                updateExtrusions(); // Flattens the globe
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html class="bg-[#0f111a] text-zinc-200">
+<head>
+    <meta charset="UTF-8">
+    <title>JC-SDK | Sovereign Hegemon Lens</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* Hide global scrollbar */
+        ::-webkit-scrollbar { display: none; }
+        
+        /* Custom scrollbar for the target list */
+        .custom-scrollbar::-webkit-scrollbar { display: block; width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 136, 0.5); }
+
+        body { margin: 0; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
+        #ui-layer { position: relative; z-index: 10; pointer-events: none; } 
+        .pointer-events-auto { pointer-events: auto; }
+        
+        .glass-panel { background: rgba(20, 24, 34, 0.75); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="bg-[#0f111a] h-screen w-screen text-sm">
+
+    <div id="ui-layer" class="w-full h-full p-5 flex justify-between">
+        
+        <div class="flex flex-col gap-3 w-[340px] max-h-full">
+            
+            <div class="glass-panel p-4 rounded pointer-events-auto shadow-2xl shrink-0">
+                <h2 class="text-[#66b3ff] font-bold uppercase text-[13px] border-b border-zinc-700 pb-2 mb-2 tracking-widest text-shadow-sm">Global Lens Metrics</h2>
+                <div id="global-metrics" class="space-y-2 text-zinc-300">
+                    <div class="flex justify-between items-center"><span>ACTIVE MOVERS</span><span id="g-count" class="text-[#00ff88] font-bold text-base">0000</span></div>
+                    <div class="flex justify-between items-center"><span>AVG BAYESIAN PULL</span><span id="g-bayes" class="text-white font-bold text-base">0.0000</span></div>
+                    <div class="flex justify-between items-center"><span>AVG ENTROPY (Z)</span><span id="g-entropy" class="text-white font-bold text-base">0.0000</span></div>
+                    <div class="flex justify-between items-center pt-2 border-t border-zinc-700 mt-1">
+                        <span>DOMINANT PHASE</span><span id="g-phase" class="font-bold text-[#ffd700] tracking-wider text-base">NEUTRAL</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded pointer-events-auto text-[10px] shadow-2xl font-semibold text-zinc-300 shrink-0">
+                <div class="flex justify-between items-baseline mb-2 border-b border-zinc-700 pb-1">
+                    <span class="text-zinc-400 text-[11px] uppercase tracking-wider">Hilbert Phase Spectrum</span>
+                </div>
+                <div class="grid grid-cols-2 gap-x-2 gap-y-2 mb-2">
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#00ff88]"></div>EARLY_RECOVERY</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#00e600]"></div>BULL_MARKET</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#ffd700]"></div>MARKET_TOP</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#ff9900]"></div>EARLY_RECESSION</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#ff3333]"></div>FULL_RECESSION</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#ff0066]"></div>BEAR_MARKET</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#9966ff]"></div>LATE_BEAR</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded shadow-sm bg-[#3399ff]"></div>MARKET_BOTTOM</div>
+                </div>
+                <div class="text-[9px] text-zinc-500 italic mt-1 border-t border-zinc-700 pt-1">
+                    * Background mesh particles map to this spectrum
+                </div>
+            </div>
+
+            <div id="inspector-pane" class="glass-panel p-4 rounded pointer-events-auto transition-opacity duration-200 opacity-0 shadow-2xl shrink-0">
+                <div class="flex justify-between items-baseline border-b border-zinc-700 pb-2 mb-3">
+                    <h2 id="ui-ticker" class="text-white font-bold text-lg tracking-wider text-shadow-sm">TICKER</h2>
+                    <span id="ui-sdr-hex" class="px-2 py-1 rounded text-[10px] font-bold text-black shadow-inner">#000000</span>
+                </div>
+                <div class="space-y-2 text-xs font-medium">
+                    <div class="flex justify-between"><span class="text-zinc-400">Arbitrator Stance:</span><span id="ui-stance" class="text-[#00ff88] font-bold">HOLD</span></div>
+                    <div class="flex justify-between"><span class="text-zinc-400">Hilbert Phase:</span><span id="ui-phase" class="text-[#66b3ff] font-bold">UNKNOWN</span></div>
+                    <div class="flex justify-between"><span class="text-zinc-400">Bayesian Conf:</span><span id="ui-bayes" class="text-white">0.0000</span></div>
+                    <div class="flex justify-between"><span class="text-zinc-400">System Entropy (Z):</span><span id="ui-entropy" class="text-white">0.0000</span></div>
+                    <div class="flex justify-between"><span class="text-zinc-400">Kinematic (X,Y):</span><span id="ui-kinematics" class="text-white">0.00, 0.00</span></div>
+                </div>
+                <div id="gradient-bar" class="h-1.5 w-full rounded mt-3 opacity-90 shadow-sm"></div>
+                <div id="lock-indicator" class="mt-2 text-[9px] text-[#ffd700] hidden text-center uppercase tracking-widest border-t border-zinc-700 pt-2 font-bold cursor-pointer hover:text-white transition-colors" onclick="releaseLock()">Target Locked (Click here to release)</div>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 w-80 max-h-full">
+            <div class="glass-panel p-4 rounded pointer-events-auto shadow-2xl flex flex-col h-[calc(100vh-60px)]">
+                <div class="border-b border-zinc-700 pb-2 mb-3 shrink-0">
+                    <h2 class="text-[#00ff88] font-bold uppercase text-[13px] tracking-widest text-shadow-sm flex justify-between items-center">
+                        <span>High Bayes Vectors</span>
+                        <span class="text-[9px] text-zinc-400 bg-black/50 px-2 py-0.5 rounded">LIVE FEED</span>
+                    </h2>
+                </div>
+                
+                <div id="target-list" class="overflow-y-auto space-y-2 pr-2 custom-scrollbar flex-1 pb-2">
+                    <div class="text-center text-zinc-500 text-xs mt-10">Awaiting Matrix Sync...</div>
+                </div>
+
+                <div class="shrink-0 pt-3 mt-2 border-t border-zinc-700 text-zinc-400 text-[10px] text-right font-semibold">
+                    JC-SDK V148 // M4 SILICON ACTIVE
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0f111a, 0.0012); 
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 30, 140);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const GLOBE_RADIUS = 60;
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6); 
+        scene.add(ambient);
+        const lensLight = new THREE.PointLight(0xbbeeff, 2.5, 400); 
+        lensLight.position.set(0, 40, 30);
+        scene.add(lensLight);
+
+        const sphereGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 32, 32);
+        const sphereMat = new THREE.MeshPhongMaterial({
+            color: 0x4a4d59, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.45, 
+            shininess: 100,
+            specular: 0xccffff,
+            flatShading: false
+        });
+        const boundingSphere = new THREE.Mesh(sphereGeo, sphereMat);
+        scene.add(boundingSphere);
+
+        const phaseColors = {
+            "EARLY_RECOVERY": [0.0, 1.0, 0.53], "BULL_MARKET": [0.0, 0.9, 0.0],
+            "MARKET_TOP": [1.0, 0.84, 0.0], "EARLY_RECESSION": [1.0, 0.6, 0.0],
+            "FULL_RECESSION": [1.0, 0.2, 0.2], "BEAR_MARKET": [1.0, 0.0, 0.4],
+            "LATE_BEAR_MARKET": [0.6, 0.4, 1.0], "MARKET_BOTTOM": [0.2, 0.6, 1.0]
+        };
+        const phaseKeys = Object.keys(phaseColors);
+
+        const sandCount = 15000;
+        const sandGeo = new THREE.BufferGeometry();
+        const sandPos = new Float32Array(sandCount * 3);
+        const sandCols = new Float32Array(sandCount * 3); 
+
+        for(let i=0; i<sandCount; i++) {
+            const r = GLOBE_RADIUS * Math.cbrt(Math.random());
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            sandPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+            sandPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+            sandPos[i*3+2] = r * Math.cos(phi);
+
+            const phase = phaseKeys[Math.floor(Math.random() * phaseKeys.length)];
+            const c = phaseColors[phase];
+            sandCols[i*3] = c[0] * 0.4;   
+            sandCols[i*3+1] = c[1] * 0.4; 
+            sandCols[i*3+2] = c[2] * 0.4; 
+        }
+        sandGeo.setAttribute('position', new THREE.BufferAttribute(sandPos, 3));
+        sandGeo.setAttribute('color', new THREE.BufferAttribute(sandCols, 3));
+        
+        const sandMat = new THREE.PointsMaterial({ size: 0.22, transparent: true, opacity: 0.75, vertexColors: true }); 
+        const sandSystem = new THREE.Points(sandGeo, sandMat);
+        scene.add(sandSystem);
+
+        const attractorCore = new THREE.Mesh(
+            new THREE.SphereGeometry(3.5, 64, 64),
+            new THREE.MeshBasicMaterial({ color: 0xffea00 }) 
+        );
+        scene.add(attractorCore);
+        
+        const attractorHalo = new THREE.Mesh(
+            new THREE.SphereGeometry(7, 32, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending })
+        );
+        scene.add(attractorHalo);
+
+        const MAX_MOVERS = 2000;
+        let activeMovers = 0;
+        const streakGeo = new THREE.CylinderGeometry(0.5, 0.5, 7.5, 6); 
+        streakGeo.translate(0, 3.75, 0);
+        streakGeo.rotateX(Math.PI / 2);
+
+        const pastelShader = new THREE.ShaderMaterial({
+            vertexShader: `
+                attribute vec3 instanceColor;
+                varying vec3 vColor;
+                void main() {
+                    vColor = instanceColor;
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    vec3 vibrant = mix(vColor, vec3(1.0), 0.2); 
+                    gl_FragColor = vec4(vibrant * 1.3, 1.0); 
+                }
+            `,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+
+        const moversMesh = new THREE.InstancedMesh(streakGeo, pastelShader, MAX_MOVERS);
+        const dummy = new THREE.Object3D();
+        const colors = new Float32Array(MAX_MOVERS * 3);
+        let ledgerData = [];
+        moversMesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+        scene.add(moversMesh);
+
+        function updateGlobalMetrics() {
+            if (activeMovers === 0) return;
+            const avgBayes = ledgerData.reduce((a, c) => a + c.bayes, 0) / activeMovers;
+            const avgEntropy = ledgerData.reduce((a, c) => a + c.z, 0) / activeMovers;
+            
+            const phaseCounts = {};
+            ledgerData.forEach(d => phaseCounts[d.phase] = (phaseCounts[d.phase] || 0) + 1);
+            let dominant = "NEUTRAL";
+            if (Object.keys(phaseCounts).length > 0) {
+                dominant = Object.keys(phaseCounts).reduce((a, b) => phaseCounts[a] > phaseCounts[b] ? a : b);
+            }
+
+            document.getElementById('g-count').innerText = activeMovers.toString().padStart(4, '0');
+            document.getElementById('g-bayes').innerText = avgBayes.toFixed(4);
+            document.getElementById('g-entropy').innerText = avgEntropy.toFixed(4);
+            document.getElementById('g-phase').innerText = dominant;
+            
+            const isBullish = dominant.includes('BULL') || dominant.includes('RECOVERY') || dominant.includes('BOTTOM');
+            document.getElementById('g-phase').className = `font-bold tracking-wider text-base ${isBullish ? 'text-[#00ff88]' : 'text-[#ffd700]'}`;
+        }
+
+        function updateTargetFeed() {
+            if (ledgerData.length === 0) return;
+            
+            const sorted = [...ledgerData].sort((a, b) => b.bayes - a.bayes).slice(0, 50);
+            const container = document.getElementById('target-list');
+            
+            container.innerHTML = sorted.map(d => `
+                <div class="p-2.5 bg-black/40 border border-zinc-700/50 rounded cursor-pointer hover:border-[#00ff88] transition-all hover:bg-black/60 group" onclick="lockTarget(${d.id})">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="font-bold text-white tracking-wide group-hover:text-[#00ff88] transition-colors">${d.ticker}</span>
+                        <span class="text-[9px] text-black px-1.5 py-0.5 rounded font-bold shadow-sm" style="background-color: ${d.hex}">${d.phase}</span>
+                    </div>
+                    <div class="flex justify-between text-[11px] text-zinc-400 font-medium">
+                        <span>PULL: <span class="text-white">${d.bayes.toFixed(4)}</span></span>
+                        <span>ENTROPY: ${d.z.toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function syncSovereignNode() {
+            try {
+                // V148 JSON Endpoint Pipeline
+                const response = await fetch('http://localhost:8080/api/state');
+                const state = await response.json();
+                
+                let assets = [];
+                if (Array.isArray(state.assets)) assets = state.assets;
+                else if (state.assets && typeof state.assets === 'object') assets = Object.values(state.assets);
+                
+                if (assets.length === 0) return;
+                
+                activeMovers = Math.min(assets.length, MAX_MOVERS);
+                ledgerData = [];
+
+                for (let i = 0; i < activeMovers; i++) {
+                    const data = assets[i];
+                    
+                    // Map V148 Data safely
+                    const phase = data.cycle_phase || "UNKNOWN";
+                    const c = phaseColors[phase] || [0.8, 0.8, 0.8]; 
+                    colors[i*3] = c[0]; colors[i*3+1] = c[1]; colors[i*3+2] = c[2];
+
+                    ledgerData.push({
+                        id: i, 
+                        ticker: data.ticker,
+                        x: data.viz_x || 0, 
+                        y: data.viz_y || 0, 
+                        z: data.system_entropy || 0,
+                        bayes: data.q_mark || data.confidence || 0.5, 
+                        phase: phase, 
+                        stance: data.stance || "HOLD",
+                        hex: '#' + c.map(x => Math.round(x*255).toString(16).padStart(2, '0')).join('').toUpperCase(),
+                        pos: new THREE.Vector3((Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10),
+                        vel: new THREE.Vector3()
+                    });
+                }
+                moversMesh.instanceColor.needsUpdate = true;
+                updateGlobalMetrics();
+                updateTargetFeed();
+            } catch (err) {
+                console.log("Searching for M4 Node on 8080...", err);
+                if(ledgerData.length === 0) generateMockData();
+            }
+        }
+
+        function generateMockData() {
+            activeMovers = 120;
+            for (let i = 0; i < activeMovers; i++) {
+                const phase = phaseKeys[Math.floor(Math.random() * phaseKeys.length)];
+                const c = phaseColors[phase];
+                colors[i*3] = c[0]; colors[i*3+1] = c[1]; colors[i*3+2] = c[2];
+                
+                ledgerData.push({
+                    id: i, ticker: `HGM-${Math.floor(Math.random()*9000)+1000}`,
+                    x: (Math.random() - 0.5) * 40, y: (Math.random() - 0.5) * 40,
+                    z: Math.random() * 50, bayes: Math.random(), phase: phase, 
+                    stance: Math.random() > 0.8 ? "STRATEGIC_ACCUMULATE" : "HOLD",
+                    hex: '#' + c.map(x => Math.round(x*255).toString(16).padStart(2, '0')).join('').toUpperCase(),
+                    pos: new THREE.Vector3((Math.random()-0.5)*GLOBE_RADIUS, (Math.random()-0.5)*GLOBE_RADIUS, (Math.random()-0.5)*GLOBE_RADIUS),
+                    vel: new THREE.Vector3()
+                });
+            }
+            moversMesh.instanceColor.needsUpdate = true;
+            updateGlobalMetrics();
+            updateTargetFeed(); 
+        }
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const uiPane = document.getElementById('inspector-pane');
+        const lockIndicator = document.getElementById('lock-indicator');
+        let lockedId = null;
+
+        function updateInspectorUI(idx) {
+            const data = ledgerData[idx];
+            document.getElementById('ui-ticker').innerText = data.ticker;
+            document.getElementById('ui-sdr-hex').innerText = data.hex;
+            document.getElementById('ui-sdr-hex').style.backgroundColor = data.hex;
+            document.getElementById('ui-stance').innerText = data.stance;
+            document.getElementById('ui-stance').className = data.stance === "STRATEGIC_ACCUMULATE" ? "text-[#00ff88] font-bold" : (data.stance === "GLOBAL_CIRCUIT_FREEZE" ? "text-[#ff3333] font-bold" : "text-[#66b3ff] font-bold");
+            document.getElementById('ui-phase').innerText = data.phase;
+            document.getElementById('ui-bayes').innerText = data.bayes.toFixed(4);
+            document.getElementById('ui-entropy').innerText = data.z.toFixed(4);
+            document.getElementById('ui-kinematics').innerText = `${data.x.toFixed(2)}, ${data.y.toFixed(2)}`;
+            document.getElementById('gradient-bar').style.background = `linear-gradient(90deg, rgba(20,24,34,0) 0%, ${data.hex} 100%)`;
+            uiPane.style.opacity = '1';
+        }
+
+        function lockTarget(id) {
+            lockedId = id;
+            updateInspectorUI(id);
+            document.body.style.cursor = 'none'; 
+            lockIndicator.classList.remove('hidden');
+        }
+
+        function releaseLock() {
+            lockedId = null;
+            document.body.style.cursor = 'default';
+            lockIndicator.classList.add('hidden');
+        }
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            if (lockedId !== null) return; 
+
+            raycaster.setFromCamera(mouse, camera);
+            raycaster.params.InstancedMesh.threshold = 1.5; 
+            const intersects = raycaster.intersectObject(moversMesh);
+
+            if (intersects.length > 0 && intersects[0].instanceId < activeMovers) {
+                updateInspectorUI(intersects[0].instanceId);
+                document.body.style.cursor = 'crosshair';
+            } else {
+                uiPane.style.opacity = '0';
+                document.body.style.cursor = 'default';
+            }
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target.closest('#ui-layer')) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(moversMesh);
+            
+            if (intersects.length > 0 && intersects[0].instanceId < activeMovers) {
+                lockTarget(intersects[0].instanceId);
+            } else {
+                releaseLock();
+            }
+        });
+
+        const targetPos = new THREE.Vector3();
+        function animate() {
+            requestAnimationFrame(animate);
+
+            boundingSphere.rotation.y += 0.0005;
+            sandSystem.rotation.y -= 0.0002;
+            attractorHalo.rotation.y += 0.002;
+
+            for (let i = 0; i < activeMovers; i++) {
+                const data = ledgerData[i];
+                
+                const targetRadius = GLOBE_RADIUS * (1.0 - data.bayes);
+                const dist = data.pos.length();
+                
+                data.vel.x = data.x * 0.01;
+                data.vel.y = (data.z - (GLOBE_RADIUS/2)) * 0.01; 
+                data.vel.z = data.y * 0.01;
+                
+                if (dist > targetRadius) {
+                    data.pos.lerp(new THREE.Vector3(0,0,0), 0.001 * data.bayes);
+                }
+
+                data.pos.add(data.vel);
+                if (data.pos.length() > GLOBE_RADIUS) data.pos.multiplyScalar(-0.95);
+
+                targetPos.copy(data.pos).add(data.vel);
+                dummy.position.copy(data.pos);
+                dummy.lookAt(targetPos);
+                
+                const kinForce = Math.sqrt(data.x**2 + data.y**2);
+                dummy.scale.set(1, 1, kinForce * 0.15 + 1);
+                dummy.updateMatrix();
+                moversMesh.setMatrixAt(i, dummy.matrix);
+            }
+            moversMesh.instanceMatrix.needsUpdate = true;
+
+            camera.position.x = Math.sin(Date.now() * 0.0001) * 140;
+            camera.position.z = Math.cos(Date.now() * 0.0001) * 140;
+            camera.lookAt(0, 0, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        syncSovereignNode();
+        setInterval(syncSovereignNode, 5000); 
+        animate();
+    </script>
+</body>
+</html>

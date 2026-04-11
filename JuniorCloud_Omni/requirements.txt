@@ -1,0 +1,12 @@
+aiohttp==3.9.3
+pandas==2.2.0
+numpy==1.26.4
+yfinance==0.2.37
+torch==2.2.1
+statsmodels==0.14.1
+pydantic==2.6.2
+structlog==24.1.0
+giotto-tda==0.6.0
+scikit-learn==1.4.1.post1
+stable-baselines3==2.2.1
+gymnasium==0.29.1

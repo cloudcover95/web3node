@@ -1,62 +1,11 @@
-name: JCLLC Web3node Documentation Deploy
+name: mdBook (manual only)
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - 'web3node/**' # Only trigger if the web3node manifold changes
-      - 'JC-SDK-CORE/**'
   workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
 
 jobs:
   build:
+    if: false
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Sovereign Root
-        uses: actions/checkout@v4
-
-      - name: Security Subroutine: Quarantine Check
-        run: |
-          echo "Executing Security Manifold Audit..."
-          # Abort if sensitive directories are detected in the build path
-          if [ -d "01_Legal" ] || [ -d "02_Assets" ]; then
-            echo "CRITICAL: Sovereign Data Leak Detected. Terminating Workflow."
-            exit 1
-          fi
-          echo "Security Manifold: NOMINAL."
-
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@v2
-        with:
-          mdbook-version: 'latest'
-
-      - name: Build Web3node Documentation
-        run: |
-          # Point mdbook to the specific web3node directory
-          cd web3node
-          mdbook build
-
-      - name: Upload Documentation Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./web3node/book
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+      - run: echo "disabled — mdbook build locally"
